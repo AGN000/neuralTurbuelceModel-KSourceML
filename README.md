@@ -1,4 +1,4 @@
-# KSourceML — Working Simulation
+# KSourceML 
 
 Proportional k-source injection inside kOmegaSST for RANS turbulence closure correction.
 **The only method in this project achieving a stable fixed point near the DNS target.**
