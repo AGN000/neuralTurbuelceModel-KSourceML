@@ -1,0 +1,20 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Version:  11
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    object      physicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Wu et al. periodic hill (alpha=1.0): Re_b = U_b * H / nu = 2800
+// In the DNS data, H=1, U_b≈0.0196 (mean U over forward-flow cells)
+//   → nu = U_b * H / Re_b = 0.0196 / 2800 ≈ 7.0e-6
+viscosityModel  constant;
+nu              7.0e-06;
+
+// ************************************************************************* //

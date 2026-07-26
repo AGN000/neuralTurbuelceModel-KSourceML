@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.so
+*.o
+.DS_Store
+*.swp
+*.bak
+*~
+.vscode/
+.idea/
+
+# OpenFOAM generated time directories (keep 0/ — initial conditions)
+case_template/0_warm/
+case_template/[1-9]*/
+
+# Build artifacts
+kOmegaSSTML/linux64Gcc*/
+kOmegaSSTML/Make/linux64Gcc*/
+kOmegaSSTML/lnInclude/
+
+# Simulation outputs (generated at runtime)
+**/test_run/
+**/tune_run/
+**/results/
+**/test_results/
+**/*_results/
+log.*
+*.foam
