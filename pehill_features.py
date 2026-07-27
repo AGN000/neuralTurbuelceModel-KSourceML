@@ -1,18 +1,3 @@
-"""
-2D pehill feature extraction for the OpenFOAM-coupled TBNN.
-
-Builds the same 15-feature input vector used at training time
-(see phase2_stress/dataset.py and data/add_pehill_*_features.py).
-
-Inputs are OpenFOAM cell-centred fields (U, k, omega, nu_t) plus the
-mesh cell centres (x, y). Outputs the (N, 17) clipped/normalised
-feature array and the (N, 10, 9) Frobenius-normalised tensor basis ready
-to feed a TBNN trained with `signed_log_lambdas=true` and the 10-extra
-feature list.
-
-The wall-distance preprocessing (KDTree + local u_τ) and the four physics
-markers are computed identically to data/add_pehill_*_features.py.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -26,7 +11,7 @@ from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 BETA_STAR = 0.09        # ε = β* · k · ω in k–ω SST
 
 
-# ── 3×3 tensor algebra on (N,3,3) arrays ─────────────────────────────────────
+
 def _mm(A, B):     return np.einsum("nij,njk->nik", A, B)
 def _tr(A):        return A[:, 0, 0] + A[:, 1, 1] + A[:, 2, 2]
 def _sym(A):       return 0.5 * (A + A.transpose(0, 2, 1))
@@ -41,14 +26,13 @@ def signed_log1p(x):
     return np.sign(x) * np.log1p(np.abs(x))
 
 
-# ── polyMesh parsing ─────────────────────────────────────────────────────────
+
 def _parse_block_count(text: str) -> tuple[int, int]:
     m = re.search(r"^(\d+)\s*\n\(", text, re.MULTILINE)
     return int(m.group(1)), m.end()
 
 
 def parse_points(path: Path) -> np.ndarray:
-    """Return (Npts, 3) array of mesh vertex coordinates."""
     text = path.read_text()
     N, start = _parse_block_count(text)
     end = text.index("\n)", start)
@@ -74,7 +58,6 @@ def parse_owner(path: Path) -> np.ndarray:
 
 
 def parse_boundary(path: Path) -> dict:
-    """Return {patch_name: {'type': str, 'startFace': int, 'nFaces': int}}."""
     text = path.read_text()
     blocks = re.findall(
         r"(\w+)\s*\{([^}]*)\}", text[text.index("//"):], re.DOTALL
@@ -96,11 +79,6 @@ def parse_boundary(path: Path) -> dict:
 
 
 def cell_centres_from_polymesh(case_dir: Path) -> tuple[np.ndarray, dict]:
-    """
-    Compute cell-centre coordinates by averaging face centres of all faces
-    that have a given cell as the owner. Returns (N_cells, 3) and the
-    parsed boundary dict.
-    """
     pm = case_dir / "constant" / "polyMesh"
     pts = parse_points(pm / "points")
     faces = parse_faces(pm / "faces")
@@ -121,9 +99,8 @@ def cell_centres_from_polymesh(case_dir: Path) -> tuple[np.ndarray, dict]:
     return cell_sum / cnt_safe, boundary
 
 
-# ── Wall-distance via KDTree (matches data/add_pehill_wall_features.py) ──────
+
 def wall_distance(cell_xy: np.ndarray, n_bins: int = 200) -> np.ndarray:
-    """KDTree distance from each cell to nearest bottom-hill or top-wall point."""
     x = cell_xy[:, 0]; y = cell_xy[:, 1]
     edges = np.linspace(x.min(), x.max(), n_bins + 1)
     bx, by = [], []
@@ -145,17 +122,8 @@ def wall_distance(cell_xy: np.ndarray, n_bins: int = 200) -> np.ndarray:
     return d, y_top
 
 
-# ── Velocity-gradient on unstructured 2D grid via least-squares ──────────────
+
 def div_tensor_2D_lsq(xy: np.ndarray, T: np.ndarray, k_nn: int = 12) -> np.ndarray:
-    """
-    LSQ divergence of a (N,3,3) tensor field on a 2D unstructured mesh.
-
-    Returns (N, 3): div_i = ∂T_i0/∂x + ∂T_i1/∂y  for i = 0,1,2.
-
-    Uses the same nearest-neighbour LSQ stencil as `grad_2D_lsq`, so the
-    body force −∇·R produced from a tensor R is consistent with the
-    velocity gradient used to build R itself.
-    """
     tree = cKDTree(xy)
     _, idx = tree.query(xy, k=min(k_nn, len(xy)))
     N = len(xy)
@@ -165,8 +133,6 @@ def div_tensor_2D_lsq(xy: np.ndarray, T: np.ndarray, k_nn: int = 12) -> np.ndarr
         dx = xy[nbrs] - xy[c]
         if dx.shape[0] < 3:
             continue
-        # Solve once per component-pair: G shape (2, 6) where columns are
-        # gradients of T[:, 0,0], T[:, 0,1], T[:, 1,0], T[:, 1,1], T[:, 2,0], T[:, 2,1]
         dT_cols = np.stack([
             T[nbrs, 0, 0] - T[c, 0, 0],   # ∂T00/∂(x,y)
             T[nbrs, 0, 1] - T[c, 0, 1],
@@ -183,12 +149,6 @@ def div_tensor_2D_lsq(xy: np.ndarray, T: np.ndarray, k_nn: int = 12) -> np.ndarr
 
 
 def grad_2D_lsq(xy: np.ndarray, U2: np.ndarray, k_nn: int = 12) -> np.ndarray:
-    """
-    Compute (N, 3, 3) velocity gradient using k_nn nearest-neighbour least
-    squares. Only x,y components nonzero (z assumed empty).
-    xy : (N, 2) cell centres
-    U2 : (N, 2) (U, V) at each cell
-    """
     tree = cKDTree(xy)
     _, idx = tree.query(xy, k=min(k_nn, len(xy)))
     N = len(xy)
@@ -207,7 +167,7 @@ def grad_2D_lsq(xy: np.ndarray, U2: np.ndarray, k_nn: int = 12) -> np.ndarray:
     return grad
 
 
-# ── Pope invariants and tensor basis ─────────────────────────────────────────
+# Pope invariants and tensor basis 
 def _pope_invariants(S_hat, O_hat) -> np.ndarray:
     S2 = _mm(S_hat, S_hat); S3 = _mm(S2, S_hat)
     O2 = _mm(O_hat, O_hat)
@@ -235,7 +195,7 @@ def _tensor_basis(S_hat, O_hat) -> np.ndarray:
     return T.reshape(N, 10, 9)
 
 
-# ── Main: build full pehill feature pack from OF fields ──────────────────────
+
 def build_pehill_features(
     cell_xy:    np.ndarray,        # (N, 2)
     U:          np.ndarray,        # (N,)
@@ -249,12 +209,7 @@ def build_pehill_features(
     domain_Lx:  float = 9.0,       # streamwise period (alpha=1.0 default)
     gradU_override: np.ndarray | None = None,  # (N,3,3) — replaces grad_2D_lsq if given
 ) -> tuple[np.ndarray, np.ndarray, dict]:
-    """
-    Returns (feat_norm (N, n_feat), T_basis (N, 10, 9), aux_dict).
 
-    aux_dict contains intermediate quantities useful for the coupling driver:
-      d_wall, u_tau_ref, S_norm, ...
-    """
     N = len(U)
     x, y = cell_xy[:, 0], cell_xy[:, 1]
     eps = np.maximum(BETA_STAR * k * omega, 1e-12)
@@ -298,7 +253,7 @@ def build_pehill_features(
     O2_norm = 2.0 * O_xy ** 2                              # |Ω|² (positive)
     q_balance = (O2_norm - S2_norm) / (S2_norm + O2_norm + 1e-30)
 
-    # 5. Streamwise phase  (Lx = 9 for alpha=1.0)
+    # 5. Streamwise phase  
     phase = 2.0 * np.pi * (x - x.min()) / domain_Lx
     cos_x = np.cos(phase); sin_x = np.sin(phase)
 
@@ -333,11 +288,10 @@ def build_pehill_features(
         "reverse_flow":       reverse_flow,
         "log_nu_t_ratio":     log_nu_t_ratio,
         "prod_diss_ratio":    prod_diss_ratio,
-        "wall_normal_strain": gradU[:, 1, 1],   # dV/dy — normal-stress transport signal
+        "wall_normal_strain": gradU[:, 1, 1],   
     }
     extra_names = list(stats.get("extra_features", []))
 
-    # 8b. Streamline history features (sl_*) — traced backward from each cell
     sl_names = [n for n in extra_names if n.startswith("sl_")]
     if sl_names:
         sl_feats = compute_streamline_history(cell_xy, U, V, d_wall)
@@ -382,16 +336,6 @@ def compute_streamline_history(
     H:         float = 1.0,
     batch:     int   = 512,    # cells per vectorised batch
 ) -> dict:
-    """Backward streamline tracer matching add_pehill_streamline_history.py exactly.
-
-    Returns dict with compressed features (signed_log1p already applied):
-      sl_reverse_time  = signed_log1p(rev_acc / 5.0)
-      sl_min_speed     = signed_log1p(min |vel|/U_bulk along trace)
-      sl_dist_to_sep   = signed_log1p(arc-dist to nearest U sign change / 5.0)
-
-    Uses cKDTree nearest-cell lookup, matching the original serial algorithm but
-    batched over `batch` starting cells at once for speed.
-    """
     N = len(U)
     tree = cKDTree(cell_xy)
     Lx   = cell_xy[:, 0].max() - cell_xy[:, 0].min()   # ~9H
@@ -401,7 +345,7 @@ def compute_streamline_history(
     min_spd  = np.full(N, np.inf, dtype=np.float64)
     dist_sep = np.full(N, T_max,  dtype=np.float64)
 
-    # Process in batches of `batch` starting cells simultaneously
+
     for b_start in range(0, N, batch):
         b_end = min(b_start + batch, N)
         B = b_end - b_start
