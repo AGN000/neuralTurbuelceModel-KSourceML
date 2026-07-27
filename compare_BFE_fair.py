@@ -1,9 +1,3 @@
-"""
-Five-way comparison: DNS vs k-omega SST vs TBNN-BFE vs TBNN-BFEk vs NODE-BFE
-All cases start from the same converged baseline; BFE/BFEk/NODE have 15 outer iterations.
-BFEk adds a k-source correction driving kOmegaSST k toward kpred.
-NODE-BFE uses a Neural ODE along streamlines for non-equilibrium b_ij correction.
-"""
 from __future__ import annotations
 import sys
 from pathlib import Path
@@ -80,10 +74,6 @@ def profile_at_x(x, y, U, x_target, band=0.12, ny=50):
 
 
 def reattachment_length(x, y, U, x_start=1.0, x_end=7.5, wall_band=0.35):
-    """
-    Scan x from x_start to x_end; find FIRST x where near-wall U > 0.
-    Near-wall = within wall_band above the local minimum y (handles curved hill wall).
-    """
     x_bins = np.linspace(x_start, x_end, int((x_end - x_start) / 0.1) + 1)
     dx = x_bins[1] - x_bins[0]
     for xb in x_bins:
@@ -125,7 +115,7 @@ def main():
     Ub_node = bulk_velocity(xn, yn, Un_arr)
     print(f"  NODE U_bulk = {Ub_node:.4f}")
 
-    # ── 1. U-profile comparison ──────────────────────────────────────────────
+    # 1. U-profile comparison
     fig, axes = plt.subplots(1, len(STATIONS), figsize=(3.5 * len(STATIONS), 5),
                              sharey=True)
     colors = {"DNS": "black",  "k-ω SST": "#1f77b4",  "TBNN-BFE": "#d62728",
@@ -165,7 +155,7 @@ def main():
     plt.close(fig)
     print(f"Saved: {out}")
 
-    # ── 2. Contour comparison ────────────────────────────────────────────────
+    #  2. Contour comparison 
     xi = np.linspace(0, 9, 300)
     yi = np.linspace(0, 3.035, 120)
     Xi, Yi = np.meshgrid(xi, yi)
@@ -193,7 +183,7 @@ def main():
     plt.close(fig)
     print(f"Saved: {out}")
 
-    # ── 3. Reattachment length bar chart ─────────────────────────────────────
+    # 3. Reattachment length bar chart
     r_dns  = reattachment_length(xd, yd, Ud)
     r_sst  = reattachment_length(xs, ys, Us)
     r_bfe  = reattachment_length(xb, yb, Ub_arr)
@@ -226,7 +216,7 @@ def main():
     plt.close(fig)
     print(f"Saved: {out}")
 
-    # ── 4. Error metric summary ───────────────────────────────────────────────
+    #  4. Error metric summary 
     print(f"\nError (reattachment) vs DNS:")
     print(f"  k-ω SST  : {abs(r_sst  - r_dns):.2f} H  ({abs(r_sst  - r_dns)/r_dns*100:.1f}%)")
     print(f"  TBNN-BFE : {abs(r_bfe  - r_dns):.2f} H  ({abs(r_bfe  - r_dns)/r_dns*100:.1f}%)")
