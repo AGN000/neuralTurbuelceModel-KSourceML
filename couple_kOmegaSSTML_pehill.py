@@ -1,8 +1,8 @@
 """
 Iterative coupling: kOmegaSST with ML k/ω source correction (kOmegaSSTML).
 
-Strategy
---------
+Strategy:
+
 Standard kOmegaSST gives x_r ≈ 6.20 H because it predicts locally wrong k
 in the recirculation shear layer.  We correct this by adding two source terms
 to the k and ω transport equations:
@@ -19,8 +19,7 @@ Because the SST model is implicit (νt enters the momentum equation as
 diffusion, not as an explicit body force), this coupling has a unique fixed
 point — unlike the explicit Rij-injection approach which exhibits a limit cycle.
 
-Usage
------
+Usage-
   python3 couple_kOmegaSSTML_pehill.py \
       --case   /data/.../pehill_alpha1p0_kOmegaSSTML \
       --dns_h5 /data/.../pehill_alpha1p0.h5 \
@@ -45,7 +44,7 @@ from pehill_features import cell_centres_from_polymesh as _cell_centres_of
 
 NU = 1.0 / 5600.0          # kinematic viscosity (Re = Ub H / ν = 5600, H=Ub=1)
 
-# ── OpenFOAM field I/O ────────────────────────────────────────────────────────
+#  OpenFOAM field I/O
 
 def latest_time_dir(case: Path) -> Path:
     dirs = [d for d in case.iterdir()
@@ -54,7 +53,6 @@ def latest_time_dir(case: Path) -> Path:
 
 
 def read_scalar(fpath: Path) -> np.ndarray:
-    """Read a volScalarField (uniform or nonuniform list) → numpy array."""
     text = fpath.read_text()
     if "nonuniform" in text:
         # Find "(\n" that opens the internalField list
@@ -70,7 +68,6 @@ def read_scalar(fpath: Path) -> np.ndarray:
 
 
 def read_vector(fpath: Path) -> np.ndarray:
-    """Read a volVectorField → (N, 3) array."""
     text = fpath.read_text()
     if "nonuniform" in text:
         nu_pos = text.index("nonuniform")
@@ -370,14 +367,14 @@ def main():
               f"   k_RANS mean={k_now.mean():.4e}  k_DNS mean={k_dns_m.mean():.4e}")
         results.append((outer, xr, k_err, k_now.mean()))
 
-    # ── Summary ───────────────────────────────────────────────────────────────
-    print("\n═══════════════════════════════════════")
+    # ── Summary 
+
     print("  outer  x_r/H   mean|Δk|   k_RANS")
     for outer, xr, kerr, km in results:
         print(f"  {outer:3d}    {xr:.2f}    {kerr:.3e}    {km:.3e}")
     best_xr = max(r[1] for r in results)
     print(f"\nBest x_r = {best_xr:.2f} H  (DNS = 4.10 H)")
-    print("═══════════════════════════════════════")
+
 
 
 if __name__ == "__main__":
