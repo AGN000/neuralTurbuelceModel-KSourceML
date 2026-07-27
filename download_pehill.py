@@ -32,7 +32,6 @@ HDF5 output: /data/TurbuelceModel/data/pehill_alpha{X}.h5
   /phase2/  lambdas (N,5), T_basis (N,10,9), b_ij (N,9)
 
 Usage
------
   python download_pehill.py --cases 0p5 0p8 1p0 1p2 1p5
 """
 
@@ -47,7 +46,6 @@ from pathlib import Path
 import numpy as np
 import h5py
 
-# ── paths ────────────────────────────────────────────────────────────────────
 RAW_BASE = (
     "https://raw.githubusercontent.com/xiaoh/para-database-for-PIML/master"
     "/pehill-5-cases-OpenFOAM"
@@ -63,7 +61,7 @@ CASES = {
 }
 RE = 2800   # Reynolds number for this dataset
 
-# ── OpenFOAM ASCII field reader ───────────────────────────────────────────────
+#  OpenFOAM ASCII field reader 
 
 def _fetch(url: str) -> str:
     with urllib.request.urlopen(url, timeout=60) as r:
@@ -71,8 +69,6 @@ def _fetch(url: str) -> str:
 
 
 def parse_foam_vector_field(text: str) -> np.ndarray:
-    """Parse OpenFOAM volVectorField internalField → (N, 3)."""
-    # Find the data block after 'nonuniform List<vector>'
     m = re.search(r"nonuniform List<vector>\s*\n\s*(\d+)\s*\n\(", text)
     if not m:
         raise ValueError("Could not find vector field data")
@@ -87,7 +83,6 @@ def parse_foam_vector_field(text: str) -> np.ndarray:
 
 
 def parse_foam_symm_tensor_field(text: str) -> np.ndarray:
-    """Parse OpenFOAM volSymmTensorField → (N, 6) = (R11 R12 R13 R22 R23 R33)."""
     m = re.search(r"nonuniform List<symmTensor>\s*\n\s*(\d+)\s*\n\(", text)
     if not m:
         raise ValueError("Could not find symmTensor field data")
@@ -103,7 +98,6 @@ def parse_foam_symm_tensor_field(text: str) -> np.ndarray:
 
 
 def parse_foam_scalar_field(text: str, field_type: str = "scalar") -> np.ndarray:
-    """Parse OpenFOAM volScalarField → (N,)."""
     m = re.search(
         rf"nonuniform List<{field_type}>\s*\n\s*(\d+)\s*\n\(", text
     )
@@ -119,7 +113,6 @@ def parse_foam_scalar_field(text: str, field_type: str = "scalar") -> np.ndarray
 
 
 def parse_foam_points(text: str) -> np.ndarray:
-    """Parse constant/polyMesh/points → (Npts, 3)."""
     m = re.search(r"(\d+)\s*\n\(", text)
     if not m:
         raise ValueError("Could not find points data")
@@ -133,7 +126,6 @@ def parse_foam_points(text: str) -> np.ndarray:
 
 
 def parse_foam_faces(text: str) -> list[list[int]]:
-    """Parse constant/polyMesh/faces → list of face vertex lists."""
     m = re.search(r"(\d+)\s*\n\(", text)
     N = int(m.group(1))
     start = m.end()
@@ -145,7 +137,6 @@ def parse_foam_faces(text: str) -> list[list[int]]:
 def compute_cell_centres(points_url: str, faces_url: str,
                           owner_url: str, neighbour_url: str,
                           N_cells: int) -> np.ndarray:
-    """Approximate cell centres as mean of face-vertex coordinates."""
     pts_text = _fetch(points_url)
     pts = parse_foam_points(pts_text)
 
@@ -173,7 +164,7 @@ def compute_cell_centres(points_url: str, faces_url: str,
     return centres  # (N_cells, 3)
 
 
-# ── Tensor algebra helpers ────────────────────────────────────────────────────
+# Tensor algebra helpers
 
 def sym(A):
     return 0.5 * (A + A.transpose(0, 2, 1))
@@ -195,18 +186,12 @@ def identity_like(A):
 
 
 def compute_grad_U_from_cells(xy: np.ndarray, UV: np.ndarray) -> np.ndarray:
-    """
-    Estimate 2D velocity gradient at each cell via least-squares fit using
-    the 8 nearest neighbours.  Returns grad_U (N, 3, 3) with z-components = 0.
 
-    xy  : (N, 2) cell centre x,y coordinates
-    UV  : (N, 2) mean U, V velocity at each cell centre
-    """
     from scipy.spatial import KDTree
 
     N = xy.shape[0]
     tree = KDTree(xy)
-    k_nn = min(9, N)   # number of nearest neighbours (including self)
+    k_nn = min(9, N)   
     _, idx = tree.query(xy, k=k_nn)
 
     grad_U = np.zeros((N, 3, 3))
@@ -214,10 +199,9 @@ def compute_grad_U_from_cells(xy: np.ndarray, UV: np.ndarray) -> np.ndarray:
     for i in range(N):
         nbrs = idx[i]       # (k,)
         dx   = xy[nbrs] - xy[i]    # (k, 2)
-        dU   = UV[nbrs] - UV[i]    # (k, 2)  Ux, Vx only
+        dU   = UV[nbrs] - UV[i]    # (k, 2)  Ux, Vx onl
 
-        # Least-squares: dU_col = dx @ G  → G = (dx^T dx)^{-1} dx^T dU
-        A = dx  # (k, 2)
+        A = dx  
         try:
             G, _, _, _ = np.linalg.lstsq(A, dU, rcond=None)  # (2, 2)
             # G[j, i] = dU_i / dx_j (note transpose)
@@ -265,7 +249,7 @@ def compute_tensor_basis(S_hat: np.ndarray, O_hat: np.ndarray) -> np.ndarray:
     return np.stack([T1,T2,T3,T4,T5,T6,T7,T8,T9,T10], axis=1)
 
 
-# ── Main processing ───────────────────────────────────────────────────────────
+
 
 def process_case(case_tag: str, alpha: float, outdir: Path):
     h5path = outdir / f"pehill_alpha{case_tag}.h5"
@@ -335,20 +319,20 @@ def process_case(case_tag: str, alpha: float, outdir: Path):
 
     S_raw, O_raw = sym(grad_U_raw), antisym(grad_U_raw)
 
-    # ── Turbulence quantities from DNS ──────────────────────────────────────
+    # Turbulence quantities from DNS 
     R11 = Tau[:, 0]; R12b = Tau[:, 1]; R22 = Tau[:, 3]; R33 = Tau[:, 5]
-    k   = 0.5 * (R11 + R22 + R33)        # k from trace of Reynolds stresses
+    k   = 0.5 * (R11 + R22 + R33)      
     Cmu = 0.09
     eps = np.where(nut > 1e-10, Cmu * k**2 / nut, 0.0)  # Cmu k^2 / nu_t
 
-    # ── Non-dimensionalise tensors ───────────────────────────────────────────
+    # Non-dimensionalise tensors
     # Clip k/eps to physically reasonable range (prevents T_basis blow-up near walls)
     k_over_eps_1d = np.clip(np.where(eps > 1e-10, k / eps, 0.0), 0.0, 100.0)
     k_over_eps    = k_over_eps_1d[:, None, None]            # (N,1,1)
     S_hat = k_over_eps * S_raw
     O_hat = k_over_eps * O_raw
 
-    # ── Phase 1 features ────────────────────────────────────────────────────
+    # Phase 1 features
     SijSij = 0.5 * trace(mat_mul(S_raw, S_raw))
     OijOij = -0.5 * trace(mat_mul(O_raw, O_raw))   # negative sign: trace(O·O) ≤ 0
     S_star  = k_over_eps_1d * np.sqrt(np.maximum(2 * SijSij, 0))
@@ -357,7 +341,7 @@ def process_case(case_tag: str, alpha: float, outdir: Path):
     feat1   = np.stack([S_star, O_star, Re_t, centres[:, 1], centres[:, 1]], axis=1)
     nu_t_out = np.clip(nut, 0, None)   # DNS nut directly
 
-    # ── Phase 2 — tensor basis and anisotropy ───────────────────────────────
+    # Phase 2 — tensor basis and anisotropy
     lambdas = compute_scalar_invariants(S_hat, O_hat)
     T_basis = compute_tensor_basis(S_hat, O_hat)
 
