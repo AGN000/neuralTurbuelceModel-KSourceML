@@ -1,15 +1,11 @@
 """
 Compare U, k, Reynolds-stress profiles between
-  DNS                      (Xiao para-database, α=1.0)
-  Baseline kOmegaSST       (A=0, converged steady state)
-  kSourceML A=0.008        (iterative coupling, converged stable FP)
+  DNS                  (Xiao para-database, α=1.0)
+  Baseline kOmegaSST     (A=0, converged steady state)
+  kSourceML A=0.008      (iterative coupling, converged stable FP)
 
 at multiple x-stations: x = 2H, 3H, 4H, 5H, 6H, 7H
 
-Saves:
-  - dns_compare_profiles.npz  (raw data per station)
-  - dns_compare_panel.png     (plotted profiles)
-  - dns_compare_summary.txt   (RMSE/correlation per station)
 """
 import json
 import numpy as np
@@ -69,7 +65,7 @@ def get_profile(cell_xy, field, x0, dx=DX_BIN):
     return y[m][order], field[m][order]
 
 
-# ─── Load mesh and DNS ────────────────────────────────────────────────────────
+# Load mesh and DNS 
 cc, _ = cell_centres_from_polymesh(CASE_BASE)
 cell_xy = cc[:, :2].astype(np.float64)
 N = len(cell_xy)
@@ -81,7 +77,7 @@ with h5py.File(DNS_FILE, 'r') as f:
         "x": f['meta/x'][:], "y": f['meta/y'][:],
     }
 
-# ─── Load RANS fields ────────────────────────────────────────────────────────
+# Load RANS fields 
 print(f"Reading baseline (A=0) from {CASE_BASE}/0_warm")
 U_base = read_vector(CASE_BASE / "0_warm" / "U")
 k_base = read_scalar(CASE_BASE / "0_warm" / "k")
@@ -102,7 +98,7 @@ results_per_x = {}
 panel_data = {"x_stations": X_STATIONS}
 
 for x0 in X_STATIONS:
-    # Use DNS x,y for this station — DNS data uses the SAME mesh as RANS
+
     y_dns, U_dns_p = get_profile(cell_xy, dns["U"], x0)
     _,    k_dns_p  = get_profile(cell_xy, dns["k"], x0)
     _,    Ub_p     = get_profile(cell_xy, U_base[:, 0], x0)
@@ -178,7 +174,7 @@ with open(OUT / "dns_compare_summary.json", "w") as f:
 print(f"\nSaved → {OUT}/dns_compare_profiles.npz")
 print(f"Saved → {OUT}/dns_compare_summary.json")
 
-# ─── Plot ────────────────────────────────────────────────────────────────────
+#  Plot 
 try:
     import matplotlib
     matplotlib.use('Agg')
