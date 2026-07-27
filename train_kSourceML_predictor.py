@@ -1,14 +1,3 @@
-"""
-Train a kSourceML amplitude predictor from field inversion data.
-
-Input  : RANS features (k, omega, nut, x, y, derived quantities)
-Target : A_field (0 outside shear layer, 0.008 in shear layer)
-
-The learned model predicts A(x,y) → kSourceML = A * k_RANS.
-Applied in coupled OF this gives a self-consistent k-source correction
-without DNS input at inference time.
-"""
-
 import json
 import numpy as np
 from pathlib import Path
@@ -26,7 +15,6 @@ _args = _parser.parse_args()
 OUT_DIR = _args.out_dir
 DATA_DIR = _args.data_dir
 
-# ─── Load field inversion data ───────────────────────────────────────────────
 data = np.load(DATA_DIR / "fi_analysis.npz")
 cell_xy     = data["cell_xy"]        # (N, 2)
 k_warm      = data["k_warm"]         # (N,)
@@ -43,8 +31,6 @@ NU = 7.0e-6   # kinematic viscosity
 print(f"Loaded {N} cells  shear-layer: {shear_mask.sum()} cells")
 print(f"best_A = {best_A:.4f} 1/s")
 
-# ─── Feature engineering ─────────────────────────────────────────────────────
-# Use only RANS-available features (no DNS quantities)
 eps_safe = 1e-30
 
 features_dict = {
@@ -69,7 +55,7 @@ y_target = A_field.copy()   # continuous target: 0 or best_A
 print(f"\nFeatures ({len(feature_names)}): {feature_names}")
 print(f"Target: 0 outside SL, {best_A:.4f} in SL  (class balance: {shear_mask.mean():.3f})")
 
-# ─── Train/val split ─────────────────────────────────────────────────────────
+#     Train/val split
 rng = np.random.default_rng(42)
 idx = rng.permutation(N)
 n_val = N // 5   # 20% validation
@@ -81,13 +67,13 @@ sl_tr = shear_mask[idx_tr]; sl_val = shear_mask[idx_val]
 
 print(f"\nTrain: {len(X_tr)}  Val: {len(X_val)}")
 
-# ─── Normalize features ───────────────────────────────────────────────────────
+
 feat_mean = X_tr.mean(axis=0)
 feat_std  = X_tr.std(axis=0) + 1e-12
 X_tr_n  = (X_tr  - feat_mean) / feat_std
 X_val_n = (X_val - feat_mean) / feat_std
 
-# ─── Train gradient boosting classifier ──────────────────────────────────────
+
 try:
     from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
     from sklearn.metrics import classification_report, roc_auc_score
@@ -122,7 +108,7 @@ try:
                      "nu": NU}, f)
     print(f"\nModel saved → {model_path}")
 
-    # ─── Evaluate predicted kSourceML ─────────────────────────────────────────
+
     # Full-domain prediction
     X_all_n = (X - feat_mean) / feat_std
     sl_pred = rf.predict(X_all_n).astype(bool)
@@ -145,7 +131,7 @@ try:
              kSourceML_pred=kSourceML_pred, kSourceML_target=kSourceML_target,
              sl_pred=sl_pred, sl_true=shear_mask)
 
-    # ─── Write predicted kSourceML as OF field ───────────────────────────────
+
     def of_header(class_, loc, name):
         return (
             "/*--------------------------------*- C++ -*----------------------------------*\\\n"
