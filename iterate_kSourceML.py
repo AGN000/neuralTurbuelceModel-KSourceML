@@ -3,9 +3,9 @@ Closed-loop iterative kSourceML coupling.
 
 At each outer iteration:
   1. Read k from the latest OF time directory
-  2. kSourceML = A * k  (proportional source in shear layer)
+   2. kSourceML = A * k  
   3. Run simpleFoam for INNER iterations
-  4. Report x_r
+4. Report x_r
 
 Verifies that A=0.008 is a stable fixed point giving x_r≈4.10H.
 """
@@ -99,7 +99,6 @@ def set_end_time(case, end_time):
     text = cd.read_text()
     text = re.sub(r'endTime\s+\d+\s*;',      f'endTime         {end_time};', text)
     text = re.sub(r'writeInterval\s+\d+\s*;', f'writeInterval   {end_time};', text)
-    # Ensure solver starts from latest available time (not from fixed startTime=0)
     text = re.sub(r'startFrom\s+\w+\s*;', 'startFrom       latestTime;', text)
     cd.write_text(text)
 
