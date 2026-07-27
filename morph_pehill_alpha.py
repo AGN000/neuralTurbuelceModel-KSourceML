@@ -5,10 +5,10 @@ Approach:
 - Reads pehill_alpha1p0_omegaSrc/constant/polyMesh/points
 - Applies a piecewise-linear x-mapping that stretches/compresses the hill
   regions while keeping the domain length fixed at L_x = 9 H:
-    Old left hill  [0,         x_h0]      → new [0,         α·x_h0]
+  Old left hill  [0,         x_h0]      → new [0,         α·x_h0]
     Old flat       [x_h0,      L_x - x_h0] → new [α·x_h0,   L_x - α·x_h0]
     Old right hill [L_x - x_h0, L_x]      → new [L_x - α·x_h0, L_x]
-- y, z unchanged. Topology (faces/owner/neighbour/boundary) unchanged.
+- y, z unchanged. Topology  unchanged.
 
 Usage:
     python morph_pehill_alpha.py --alpha 0.5 --out pehill_alpha0p5_omegaSrc
