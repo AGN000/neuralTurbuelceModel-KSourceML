@@ -1,6 +1,5 @@
 """
-Field-inversion sweep: find the Rij scale factor s* such that
-RANS(s* · Rij_DNS) has a stable fixed point at x_r ≈ 4.10H.
+Field-inversion sweep: find the Rij scale factor s* such that RANS(s* · Rij_DNS) has a stable fixed point at x_r ≈ 4.10H.
 
 Theory (from Jacobian analysis):
   - RANS(s=1.0, Rij_DNS) → x_r ≈ 1.68H  (too short, too much stress)
@@ -42,7 +41,6 @@ COUPLE_SCRIPT = COUPLING_DIR / "couple_Rij_NODE_pehill.py"
 
 
 def clone_fresh_case(base: Path, dst: Path) -> None:
-    """Clone base case keeping only t=0 initial conditions."""
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(base, dst)
@@ -81,7 +79,6 @@ def run_coupling(case: Path, scale: float, outer: int, inner: int,
 
 
 def parse_xr_from_log(log_file: Path) -> list[float]:
-    """Extract x_r/H values from coupling log (one per outer iteration)."""
     xr_values = []
     pattern = re.compile(r"x_r/H\s*=\s*([0-9.]+)H")
     for line in log_file.read_text().splitlines():
@@ -93,7 +90,6 @@ def parse_xr_from_log(log_file: Path) -> list[float]:
 
 def interpolate_s_star(scales: list[float], xr_final: list[float],
                        target: float = 4.10) -> float | None:
-    """Linear interpolation to find s* where x_r(s*) = target."""
     for i in range(len(scales) - 1):
         x0, x1 = xr_final[i], xr_final[i + 1]
         if (x0 - target) * (x1 - target) <= 0:
@@ -125,7 +121,7 @@ def main() -> None:
     print(f"Outer={args.outer}  Inner={args.inner}  [PARALLEL]")
     print(f"{'='*60}\n")
 
-    # ── Phase 1: clone all cases and launch all subprocesses in parallel ──────
+    # Phase 1: clone all cases and launch all subprocesses in parallel 
     procs: list[tuple[float, Path, Path, subprocess.Popen]] = []
     for s in args.scales:
         case_name = f"fi_s{s:.2f}".replace(".", "p")
@@ -154,7 +150,7 @@ def main() -> None:
 
     print(f"\nAll {len(procs)} jobs launched. Waiting for completion…\n")
 
-    # ── Phase 2: wait for all and collect results ─────────────────────────────
+    # Phase 2: wait for all and collect results 
     for s, case_dir, log_file, proc in procs:
         rc = proc.wait()
         xr_traj = parse_xr_from_log(log_file)
